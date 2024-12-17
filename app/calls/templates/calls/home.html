@@ -1,0 +1,101 @@
+{% extends 'calls/base.html' %}
+
+{% block title %}Главная - Система автообзвона{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h1>Телефонные номера</h1>
+        <div class="phone-list" id="phone-list">
+            {% for phone in phone_numbers %}
+                <div class="phone-item status-{{ phone.status }}">
+                    <div class="row">
+                        <div class="col-md-4">
+                            <h5>
+                                <a href="{% url 'phone_detail' phone.id %}" class="text-decoration-none">
+                                    {{ phone.number }}
+                                </a>
+                            </h5>
+                        </div>
+                        <div class="col-md-3">
+                            <span class="badge bg-{{ phone.status|yesno:'success,warning' }}">
+                                {{ phone.get_status_display }}
+                            </span>
+                        </div>
+                        <div class="col-md-5 text-end">
+                            <small class="text-muted">
+                                Добавлен: {{ phone.created_at|date:"d.m.Y H:i" }}
+                            </small>
+                        </div>
+                    </div>
+                    {% if phone.summary %}
+                        <div class="mt-2">
+                            <small class="text-muted">{{ phone.summary|truncatewords:50 }}</small>
+                        </div>
+                    {% endif %}
+                </div>
+            {% empty %}
+                <div class="alert alert-info" id="no-phones-message">
+                    Пока нет добавленных номеров. 
+                    <a href="{% url 'add_numbers' %}" class="alert-link">Добавить номера</a>
+                </div>
+            {% endfor %}
+        </div>
+
+        {% if is_paginated %}
+            <nav class="mt-4">
+                <ul class="pagination justify-content-center">
+                    {% if page_obj.has_previous %}
+                        <li class="page-item">
+                            <a class="page-link" href="?page=1">&laquo; Первая</a>
+                        </li>
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ page_obj.previous_page_number }}">Предыдущая</a>
+                        </li>
+                    {% endif %}
+
+                    <li class="page-item active">
+                        <span class="page-link">
+                            Страница {{ page_obj.number }} из {{ page_obj.paginator.num_pages }}
+                        </span>
+                    </li>
+
+                    {% if page_obj.has_next %}
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ page_obj.next_page_number }}">Следующая</a>
+                        </li>
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}">Последняя &raquo;</a>
+                        </li>
+                    {% endif %}
+                </ul>
+            </nav>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+function updatePhoneStatuses() {
+    fetch('/api/phone-list/')
+        .then(response => response.json())
+        .then(data => {
+            data.phones.forEach(phone => {
+                // Находим существующий элемент телефона
+                const phoneElement = document.querySelector(`.phone-item a[href="/phone/${phone.id}/"]`).closest('.phone-item');
+                if (phoneElement) {
+                    // Обновляем только статус
+                    const statusBadge = phoneElement.querySelector('.badge');
+                    statusBadge.className = `badge bg-${phone.status === 'completed' ? 'success' : 'warning'}`;
+                    statusBadge.textContent = phone.status;
+                    
+                    // Обновляем класс элемента
+                    phoneElement.className = `phone-item status-${phone.status}`;
+                }
+            });
+        });
+}
+
+// Обновляем только статусы каждые 30 секунд
+//setInterval(updatePhoneStatuses, 30000);
+</script>
+{% endblock %}

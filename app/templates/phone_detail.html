@@ -1,0 +1,215 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h3 class="mb-0">{{ phone.number }}</h3>
+                        <span class="badge bg-{{ phone.status|lower }}">{{ phone.status }}</span>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <!-- Summary Section -->
+                    {% if phone.summary %}
+                    <div class="summary-section">
+                        <h4 class="mb-4">Call Summary</h4>
+                        <div id="summary-{{ phone.id }}" class="summary-content" data-summary="{{ phone.summary }}"></div>
+                    </div>
+                    {% endif %}
+
+                    <!-- Call Records Section -->
+                    <div class="mt-4">
+                        <h4>Call History</h4>
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>Date</th>
+                                        <th>Duration</th>
+                                        <th>DTMF Sequence</th>
+                                        <th>Recording</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for record in phone.call_records.all %}
+                                    <tr>
+                                        <td>{{ record.created_at|date:"Y-m-d H:i:s" }}</td>
+                                        <td>{{ record.duration }} sec</td>
+                                        <td>{{ record.dtmf_sequence|join:", " }}</td>
+                                        <td>
+                                            {% if record.recording_file %}
+                                            <a href="#" class="btn btn-sm btn-outline-primary">Play</a>
+                                            {% else %}
+                                            No recording
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Styles -->
+<style>
+    .summary-section {
+        background-color: #f8f9fa;
+        padding: 1.5rem;
+        border-radius: 0.5rem;
+    }
+
+    .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 1rem;
+        margin-bottom: 2rem;
+    }
+
+    .stat-card {
+        background: white;
+        padding: 1rem;
+        border-radius: 0.5rem;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        text-align: center;
+    }
+
+    .stat-value {
+        font-size: 2rem;
+        font-weight: bold;
+        color: #0d6efd;
+        margin-bottom: 0.5rem;
+    }
+
+    .stat-label {
+        color: #6c757d;
+        text-transform: uppercase;
+        font-size: 0.875rem;
+        letter-spacing: 0.05em;
+    }
+
+    .menu-options {
+        background: white;
+        padding: 1.5rem;
+        border-radius: 0.5rem;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    }
+
+    .menu-option {
+        padding: 1rem;
+        border-left: 4px solid #0d6efd;
+        margin-bottom: 1rem;
+        background: #f8f9fa;
+        border-radius: 0 0.5rem 0.5rem 0;
+    }
+
+    .menu-option:last-child {
+        margin-bottom: 0;
+    }
+
+    .badge {
+        padding: 0.5em 1em;
+    }
+
+    .badge.bg-new { background-color: #17a2b8; }
+    .badge.bg-in_progress { background-color: #ffc107; }
+    .badge.bg-completed { background-color: #28a745; }
+    .badge.bg-failed { background-color: #dc3545; }
+</style>
+
+<!-- Scripts -->
+<script>
+function formatSummary(summaryStr) {
+    try {
+        const summary = JSON.parse(summaryStr);
+        let html = '<div class="summary-content">';
+
+        // Stats Section
+        if (summary.stats) {
+            html += '<div class="stats-grid">';
+            for (const [key, value] of Object.entries(summary.stats)) {
+                const label = key.split('_')
+                    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+                    .join(' ');
+                html += `
+                    <div class="stat-card">
+                        <div class="stat-value">${value}</div>
+                        <div class="stat-label">${label}</div>
+                    </div>
+                `;
+            }
+            html += '</div>';
+        }
+
+        // Menu Summary Section
+        if (summary.menu_summary) {
+            html += '<div class="menu-options">';
+            html += '<h5 class="mb-3">Menu Options</h5>';
+            
+            // Split menu summary into lines and format each line
+            const menuLines = summary.menu_summary.split('\n')
+                .filter(line => line.trim())  // Remove empty lines
+                .map(line => line.trim());
+                
+            for (const line of menuLines) {
+                if (line.startsWith('-')) {
+                    // Extract phone number and format it
+                    const phoneMatch = line.match(/Call .* at (\d+)/);
+                    const phoneNumber = phoneMatch ? phoneMatch[1] : null;
+                    
+                    // Extract the press sequence
+                    const pressMatch = line.match(/press (\d+)/);
+                    const pressSequence = pressMatch ? pressMatch[1] : null;
+                    
+                    // Get the action (everything after "to")
+                    const actionMatch = line.match(/to (.+)\.?$/);
+                    const action = actionMatch ? actionMatch[1] : null;
+                    
+                    if (phoneNumber && pressSequence && action) {
+                        html += `
+                            <div class="menu-option">
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <span class="badge bg-primary">Press ${pressSequence}</span>
+                                    <small class="text-muted">${phoneNumber}</small>
+                                </div>
+                                <div>${action}</div>
+                            </div>
+                        `;
+                    } else {
+                        html += `<div class="menu-option">${line.substring(1).trim()}</div>`;
+                    }
+                } else {
+                    html += `<div class="menu-option">${line}</div>`;
+                }
+            }
+            
+            html += '</div>';
+        }
+
+        html += '</div>';
+        return html;
+    } catch (e) {
+        console.error('Error parsing summary:', e);
+        return '<div class="alert alert-danger">Error parsing summary</div>';
+    }
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    // Format summary on page load
+    const summaryElement = document.querySelector('[id^="summary-"]');
+    if (summaryElement) {
+        const rawSummary = summaryElement.getAttribute('data-summary');
+        if (rawSummary) {
+            summaryElement.innerHTML = formatSummary(rawSummary);
+        }
+    }
+});
+</script>
+{% endblock %}

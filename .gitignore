@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.egg-info/
+dist/
+build/
+
+# Виртуальные окружения
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Логи
+*.log
+
+# Конфиденциальные файлы
+.env
+
+# Другие
+*.DS_Store
+*.db
+*.sqlite3

@@ -1,0 +1,201 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2>Phone Numbers</h2>
+    <div class="row">
+        {% for phone in phones %}
+        <div class="col-md-6 mb-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <a href="{% url 'phone_detail' phone.id %}" class="text-decoration-none">
+                            {{ phone.number }}
+                        </a>
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <p class="card-text">Status: <span class="badge bg-{{ phone.status|lower }}">{{ phone.status }}</span></p>
+                    
+                    <!-- Summary Section -->
+                    {% if phone.summary_raw %}
+                    <div class="summary-section">
+                        <h6>Summary</h6>
+                        <div id="summary-{{ phone.id }}" class="summary-content" data-summary="{{ phone.summary_raw }}"></div>
+                    </div>
+                    {% endif %}
+                    
+                    <!-- Actions -->
+                    <div class="mt-3">
+                        <button class="btn btn-primary btn-sm" onclick="makeCall('{{ phone.id }}')">Make Call</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<!-- Подключаем highlight.js для подсветки синтаксиса -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/default.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+
+<style>
+    .summary-content {
+        font-family: 'Courier New', monospace;
+        white-space: pre-wrap;
+        background-color: #f8f9fa;
+        padding: 1rem;
+        border-radius: 0.25rem;
+        margin-top: 0.5rem;
+    }
+    
+    .menu-summary {
+        margin-top: 1rem;
+    }
+    
+    .menu-summary ul {
+        list-style-type: none;
+        padding-left: 0;
+    }
+    
+    .menu-summary li {
+        margin-bottom: 0.5rem;
+        padding: 0.5rem;
+        background-color: #fff;
+        border: 1px solid #dee2e6;
+        border-radius: 0.25rem;
+    }
+    
+    .stats-section {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 0.5rem;
+        margin-bottom: 1rem;
+    }
+    
+    .stat-item {
+        padding: 0.5rem;
+        background-color: #e9ecef;
+        border-radius: 0.25rem;
+        text-align: center;
+    }
+    
+    .stat-value {
+        font-size: 1.25rem;
+        font-weight: bold;
+    }
+    
+    .stat-label {
+        font-size: 0.875rem;
+        color: #6c757d;
+    }
+    
+    .badge.bg-new { background-color: #17a2b8; }
+    .badge.bg-in_progress { background-color: #ffc107; }
+    .badge.bg-completed { background-color: #28a745; }
+    .badge.bg-failed { background-color: #dc3545; }
+</style>
+
+<script>
+function formatSummary(summaryStr) {
+    try {
+        const summary = JSON.parse(summaryStr);
+        let html = '';
+        
+        // Stats Section
+        if (summary.stats) {
+            html += '<div class="stats-section">';
+            for (const [key, value] of Object.entries(summary.stats)) {
+                html += `
+                    <div class="stat-item">
+                        <div class="stat-value">${value}</div>
+                        <div class="stat-label">${key.replace(/_/g, ' ').toUpperCase()}</div>
+                    </div>
+                `;
+            }
+            html += '</div>';
+        }
+        
+        // Menu Summary Section
+        if (summary.menu_summary) {
+            html += '<div class="menu-summary">';
+            html += '<h6>Menu Options</h6>';
+            html += '<ul>';
+            
+            // Split menu summary into lines and format each line
+            const menuLines = summary.menu_summary.split('\n')
+                .filter(line => line.trim())  // Remove empty lines
+                .map(line => line.trim());
+                
+            for (const line of menuLines) {
+                if (line.startsWith('-')) {
+                    html += `<li>${line.substring(1).trim()}</li>`;
+                } else {
+                    html += `<li>${line}</li>`;
+                }
+            }
+            
+            html += '</ul></div>';
+        }
+        
+        return html;
+    } catch (e) {
+        console.error('Error parsing summary:', e);
+        return '<div class="alert alert-danger">Error parsing summary</div>';
+    }
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    // Find all summary elements and format them
+    document.querySelectorAll('[id^="summary-"]').forEach(element => {
+        const phoneId = element.id.split('-')[1];
+        const summaryElement = document.querySelector(`#summary-${phoneId}`);
+        if (summaryElement) {
+            const rawSummary = summaryElement.getAttribute('data-summary');
+            if (rawSummary) {
+                summaryElement.innerHTML = formatSummary(rawSummary);
+            }
+        }
+    });
+});
+
+async function makeCall(phoneId) {
+    try {
+        const response = await fetch(`/api/make-call/${phoneId}/`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCookie('csrftoken')
+            }
+        });
+        
+        if (!response.ok) {
+            throw new Error('Network response was not ok');
+        }
+        
+        const data = await response.json();
+        alert('Call initiated successfully!');
+    } catch (error) {
+        console.error('Error:', error);
+        alert('Error initiating call');
+    }
+}
+
+// Функция для получения CSRF токена
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+</script>
+{% endblock %}
